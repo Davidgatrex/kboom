@@ -9,8 +9,6 @@ section .text
 global _start
 extern s2_main
 _start:
-    ;mov eax, 0x2BADB002
-    ;mov ebx, [esp + 4]
     mov esp, stack_top
     mov ebp, esp
 
@@ -60,8 +58,6 @@ far_to_kernel:
     mov edi, edi
     shl rbx, 32
     or  rbx, rdi
-    xor edi, edi            ; RDI = m_map (de momento 0; pasa aquí el puntero real)
-    mov esi, ebp            ; RSI = dirección física de carga
     jmp rbx
 
 section .bss
