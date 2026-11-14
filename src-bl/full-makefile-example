@@ -1,0 +1,107 @@
+# This is the makefile I use. Feel free to adapt it
+CC = gcc
+NASM = nasm
+OBJCOPY = objcopy
+
+# Flags exclusivos para la compilación de C del kernel
+CFLAGS = -mno-80387 -mno-mmx -mno-sse -mno-avx -mgeneral-regs-only -ffreestanding -fno-stack-protector -fno-ident -Wall -fno-pie -fno-pic -Wextra -m64 -mcmodel=large
+
+# Flags exclusivos para C del Stage 2 (generalmente 32-bit o 64-bit protegido)
+CFLAGS_BL = -mno-80387 -mno-mmx -mno-sse -mno-avx -mgeneral-regs-only -ffreestanding -fno-stack-protector -fno-ident -Wall -fno-pie -fno-pic -Wextra -m32
+
+# Flags para NASM
+NASMFLAGS_KERNEL = -f elf64
+NASMFLAGS_BL_ASM = -f elf32
+NASMFLAGS_MBR = -f bin
+
+# Flags para la fase de enlace
+LDFLAGS = -nostdlib -nostartfiles -nodefaultlibs --static -T linker.ld
+LDBL2FLAGS = -nostdlib --static -T $(BL_DIR)/linker-bls2.ld
+
+SRC_DIR = src
+BL_DIR = src-bl
+BUILD_DIR = build
+
+# Encontrar archivos fuente del kernel recursivamente
+SOURCES_C = $(shell find $(SRC_DIR) -name '*.c')
+SOURCES_ASM = $(shell find $(SRC_DIR) -name '*.asm')
+
+# Encontrar archivos fuente del Stage 2 (C y ASM en src-bl)
+SOURCES_BL_C = $(shell find $(BL_DIR) -name '*.c')
+SOURCES_BL_ASM = $(shell find $(BL_DIR) -name '*.asm' ! -name 'boot.asm')
+
+# Mapear objetos del kernel
+OBJS_C = $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/c/%.o, $(SOURCES_C))
+OBJS_ASM = $(patsubst $(SRC_DIR)/%.asm, $(BUILD_DIR)/asm/%.o, $(SOURCES_ASM))
+OBJS = $(OBJS_C) $(OBJS_ASM)
+
+# Mapear objetos del Stage 2
+OBJS_BL_C = $(patsubst $(BL_DIR)/%.c, $(BUILD_DIR)/bl_c/%.o, $(SOURCES_BL_C))
+OBJS_BL_ASM = $(patsubst $(BL_DIR)/%.asm, $(BUILD_DIR)/bl_asm/%.o, $(SOURCES_BL_ASM))
+OBJS_BL = $(OBJS_BL_ASM) $(OBJS_BL_C)
+
+# Binarios de salida
+KERNEL_BIN = $(BUILD_DIR)/kernel.bin
+BOOTLOADER_BIN = $(BUILD_DIR)/boot.bin
+STAGE2_ELF = $(BUILD_DIR)/stage2.elf
+STAGE2_BIN = $(BUILD_DIR)/stage2.bin
+DISK_IMG = $(BUILD_DIR)/os.iso
+
+.PHONY: all clean run
+
+# Por defecto, compila todo y construye la imagen de disco MBR
+all: $(DISK_IMG)
+
+# 1. Regla para compilar el MBR (Sector 0 - 512 bytes estricts)
+$(BOOTLOADER_BIN): $(BL_DIR)/boot.asm
+	@mkdir -p $(BUILD_DIR)
+	$(NASM) $(NASMFLAGS_MBR) $< -o $@
+
+# 2. Reglas para compilar los fuentes del Stage 2 (C y ASM)
+$(BUILD_DIR)/bl_c/%.o: $(BL_DIR)/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS_BL) -c $< -o $@
+
+$(BUILD_DIR)/bl_asm/%.o: $(BL_DIR)/%.asm
+	@mkdir -p $(dir $@)
+	$(NASM) $(NASMFLAGS_BL_ASM) $< -o $@
+
+# Enlace del Stage 2 (genera ELF y lo convierte a binario plano con objcopy)
+$(STAGE2_ELF): $(OBJS_BL) $(BL_DIR)/linker-bls2.ld
+	ld -m elf_i386 $(LDBL2FLAGS) $(OBJS_BL) -o $@
+
+#$(STAGE2_BIN): $(STAGE2_ELF)
+#	$(OBJCOPY) -O binary $< $@
+
+# 3. Reglas estándar para el kernel
+$(BUILD_DIR)/c/%.o: $(SRC_DIR)/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/asm/%.o: $(SRC_DIR)/%.asm
+	@mkdir -p $(dir $@)
+	$(NASM) $(NASMFLAGS_KERNEL) $< -o $@
+
+$(KERNEL_BIN): $(OBJS) linker.ld
+	$(CC) -Xlinker -Map=kernel.map $(LDFLAGS) $(OBJS) -o $@
+
+$(DISK_IMG): $(STAGE2_ELF) $(KERNEL_BIN)
+	cp $(STAGE2_ELF) build/disk/stage2.elf
+	cp $(KERNEL_BIN) build/disk/kernel.bin
+	grub-mkrescue -o $(DISK_IMG) build/disk
+
+copy: b.out
+	sudo mount /var/lib/libvirt/images/vm1-1.img /mnt/foo
+	sudo cp b.out /mnt/foo/a.out
+	sudo umount /var/lib/libvirt/images/vm1-1.img
+
+b.out: a.s
+	nasm -felf64 a.s
+	ld -T ulinker.ld a.o -o b.out
+
+# Ejecución en QEMU con la imagen de disco raw
+run: $(DISK_IMG)
+	qemu-system-x86_64 -drive format=raw,file=$(DISK_IMG) -serial stdio
+
+clean:
+	rm -rf $(BUILD_DIR)
