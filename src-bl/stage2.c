@@ -1,3 +1,4 @@
+// Note: This reference implementation is still in developement. Use it carefully
 #include <stdint.h>
 #include "mboot.h"
 #include "string.h"
