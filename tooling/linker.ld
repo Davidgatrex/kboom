@@ -1,9 +1,9 @@
 OUTPUT_FORMAT(binary)
-ENTRY(_start)
+ENTRY(_start) /*Or replace it with your entry point*/
 
 SECTIONS
 {
-  . = 0xFFFF800000000000;
+  . = 0xFFFF800000000000; /*Or replace it with your base address*/
 
   _VIRT_BASE_ = .;
 
@@ -14,7 +14,6 @@ SECTIONS
 
   .text : {
 _TEXT_START_ = .;
-    *crt0.o(.text)
     *(.text)
 _TEXT_END_ = .;
   }
