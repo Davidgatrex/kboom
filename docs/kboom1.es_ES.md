@@ -1,163 +1,163 @@
-# KBOOM-1 Spec
-## Preamble
-### What is it?
+# Especificación KBOOM-1
+## Preámbulo
+### ¿Qué es?
 
-_Note: KBOOM-1 is intended to be used on x86-64 platforms, so all the document will assume an x86-64 architecture with at least an AMD Opteron as CPU. However, it could theoretically be extended for other architectures._
+_Nota: KBOOM-1 está diseñado para usarse en plataformas x86-64, por lo que todo el documento asumirá una arquitectura x86-64 con al menos un AMD Opteron como CPU. Sin embargo, teóricamente podría extenderse a otras arquitecturas._
 
-KBOOM-1 _(Kernel BOOtstrap Metadata Version 1.X)_ is a kernel bootstrapping specification intended to serve as an intermediate layer between the bootloader and the kernel, so the kernel finds itself in a predictable and deterministic 64-bit environment.
+KBOOM-1 _(Kernel BOOtstrap Metadata Version 1.X)_ es una especificación de arranque de kernel diseñada para servir como una capa intermedia entre el gestor de arranque (bootloader) y el kernel, de modo que este último se encuentre en un entorno de 64 bits predecible y determinista.
 
-It is especially (but not only) meant to easen the load process of a 64-bit higher half kernel (with emphasis on BIOS systems, but also UEFI).
+Está pensado especialmente (aunque no exclusivamente) para facilitar el proceso de carga de un kernel de 64 bits en la mitad superior (higher half) con énfasis en sistemas BIOS, aunque también es compatible con UEFI.
 
-### What it is **NOT**
+### Qué **NO** es
 
-KBOOM-1 is not:
-- A bootloader
-- A kernel
-- A firmware
+KBOOM-1 no es:
+- Un gestor de arranque (bootloader)
+- Un kernel
+- Un firmware
 
-### Terminological Disambiguation
-- "**MUST**": Strict condition. Otherwise, it may or may not boot, depending on the implementation.
+### Desambiguación terminológica
+- "**DEBE**" (MUST): Condición estricta. De no cumplirse, puede que arranque o no, dependiendo de la implementación.
 
-- "**SHOULD**": Advised condition. It is advised, but the kernel is guaranteed to boot even if it's not followed. However, the information may or may not keep its complete integrity.
+- "**DEBERÍA**" (SHOULD): Condición recomendada. Se aconseja su cumplimiento, pero se garantiza que el kernel arrancará aunque no se siga. Sin embargo, la información podría no mantener su completa integridad.
 
-## KBOOM-1 Structures
+## Estructuras de KBOOM-1
 
-### Main header
+### Cabecera principal
 
-The KBOOM-1 spec has a header through which information is exchanged from the kernel to the bootstrapper and _vice versa_. The header **MUST** be placed at the byte zero of the kernel's flat binary and it **MUST** begin with an 8-Byte magic signature with the string "\_KBOOM1\_" (without null terminator) as its value.
+La especificación KBOOM-1 cuenta con una cabecera a través de la cual se intercambia información desde el kernel hacia el cargador (bootstrapper) y _viceversa_. La cabecera **DEBE** ubicarse en el byte cero del binario plano (flat binary) del kernel y **DEBE** comenzar con una firma mágica de 8 bytes con la cadena "\_KBOOM1\_" (sin terminador nulo) como valor.
 
-The layout of the header is the following:
+La disposición de la cabecera es la siguiente:
 ```
-| Offset (bytes) | Name             | Type (C-style)
-|----------------|--------------------------------------------------|
-| 0x00           | magic            | char[8]                       |
-| 0x08           | virt_base        | uint64_t                      |
-| 0x10           | entry            | uint64_t                      |
-| 0x18           | size             | uint64_t                      |
-| 0x20           | bss_base         | uint64_t                      |
-| 0x28           | bss_end          | uint64_t                      |
-| 0x30           | video_info       | kboom1_video_info*            |
-| 0x38           | region_table     | kboom1_memory_region*         |
-| 0x40           | region_table_sz  | uint64_t                      |
-|----------------|------------------|-------------------------------|
-```
-
-**Where:**
-
-- ```magic```: The identification magic value (```{'_','K','B','O','O','M','1','_'}```).
-- ```virt_base```: The base virtual address to which the kernel is linked.
-- ```entry```: The virtual address of the entry point.
-- ```size```: The file size on disk.
-- ```bss_base```: The virtual address of the beginning of ```.bss``` section.
-- ```bss_end```: The virtual address of the end of ```.bss``` section.
-- ```video_info```: The virtual address of the video information structure where the kernel wants the video information to be placed (```NULL``` for "no video information expected").
-- ```region_table```: The virtual address of the memory region structure table where the kernel wants the memory region map to be placed (```NULL``` for "no memory regions expected").
-- ```region_table_sz```: The highest number of entries that the region table can hold. If zero, defaulted to 128.
-
-### Memory region (entry, not table. The table is just an array)
-```
-| Offset (bytes) | Name             | Type (C-style)
-|----------------|--------------------------------------------------|
-| 0x00           | type             | uint32_t                      |
-| 0x04           | base             | uint64_t                      |
-| 0x0C           | size             | uint64_t                      |
-| 0x14           | next_idx         | uint16_t                      |
-| 0x16           | used             | uint16_t                      |
-| 0x18           | flags            | uint64_t                      |
-|----------------|------------------|-------------------------------|
+| Desplazamiento (bytes) | Nombre           | Tipo (estilo C)
+|------------------------|--------------------------------------------------|
+| 0x00                   | magic            | char[8]                       |
+| 0x08                   | virt_base        | uint64_t                      |
+| 0x10                   | entry            | uint64_t                      |
+| 0x18                   | size             | uint64_t                      |
+| 0x20                   | bss_base         | uint64_t                      |
+| 0x28                   | bss_end          | uint64_t                      |
+| 0x30                   | video_info       | kboom1_video_info*            |
+| 0x38                   | region_table     | kboom1_memory_region*         |
+| 0x40                   | region_table_sz  | uint64_t                      |
+|------------------------|------------------|-------------------------------|
 ```
 
-**Where:**
+**Donde:**
 
-- ```type```: The region type according to BIOS' [E820](https://wiki.osdev.org/Detecting_Memory_(x86)). Type 0 indicates "Free entry".
-- ```base```: The physical address where the region starts.
-- ```size```: The size of the region in bytes.
-- ```next_idx```: The index of the next element. The terminator value is ~0 (0xFFFF).
-- ```used```: To hold metadata for the PMA of the bootstrapper (it may vary between implementations. Not reliable). To be ignored by the kernel or used by its own PMA after clearing the field.
-- ```flags```: The flags of the region. No flags defined yet.
+- ```magic```: El valor mágico de identificación (```{'_','K','B','O','O','M','1','_'}```).
+- ```virt_base```: La dirección virtual base a la que está enlazado el kernel.
+- ```entry```: La dirección virtual del punto de entrada (entry point).
+- ```size```: El tamaño del archivo en disco.
+- ```bss_base```: La dirección virtual del inicio de la sección ```.bss```.
+- ```bss_end```: La dirección virtual del final de la sección ```.bss```.
+- ```video_info```: La dirección virtual de la estructura de información de vídeo donde el kernel espera que se coloque dicha información (```NULL``` para "no se espera información de vídeo").
+- ```region_table```: La dirección virtual de la tabla de estructuras de regiones de memoria donde el kernel espera que se coloque el mapa de regiones (```NULL``` para "no se esperan regiones de memoria").
+- ```region_table_sz```: El número máximo de entradas que puede contener la tabla de regiones. Si es cero, toma el valor por defecto de 128.
 
-### Video information
+### Región de memoria (entrada, no la tabla. La tabla es simplemente un array)
 ```
-| Offset (bytes) | Name             | Type (C-style)
-|----------------|--------------------------------------------------|
-| 0x00           | fbaddr           | uint64_t                      |
-| 0x08           | fbwid            | uint32_t                      |
-| 0x0C           | fbhei            | uint32_t                      |
-| 0x10           | fbpitch          | uint32_t                      |
-| 0x14           | fbbpp            | uint32_t                      |
-|----------------|------------------|-------------------------------|
+| Desplazamiento (bytes) | Nombre           | Tipo (estilo C)
+|------------------------|--------------------------------------------------|
+| 0x00                   | type             | uint32_t                      |
+| 0x04                   | base             | uint64_t                      |
+| 0x0C                   | size             | uint64_t                      |
+| 0x14                   | next_idx         | uint16_t                      |
+| 0x16                   | used             | uint16_t                      |
+| 0x18                   | flags            | uint64_t                      |
+|------------------------|------------------|-------------------------------|
 ```
 
-**Where:**
+**Donde:**
 
-- ```fbaddr```: The physical address of the framebuffer.
-- ```fbwid```: The width of the framebuffer in pixels.
-- ```fbhei```: The height of the framebuffer in pixels.
-- ```fbpitch```: The width of a scanline in bytes.
-- ```fbbpp```: The bits per pixel of the framebuffer.
+- ```type```: El tipo de región según [E820](https://wiki.osdev.org/Detecting_Memory_(x86)) de la BIOS. El tipo 0 indica "Entrada libre".
+- ```base```: La dirección física donde comienza la región.
+- ```size```: El tamaño de la región en bytes.
+- ```next_idx```: El índice del siguiente elemento. El valor terminador es ~0 (0xFFFF).
+- ```used```: Para almacenar metadatos del PMA del cargador (puede variar entre implementaciones; no es fiable). Debe ser ignorado por el kernel o utilizado por su propio PMA tras limpiar el campo.
+- ```flags```: Las banderas (flags) de la región. Aún no hay banderas definidas.
 
-## KBOOM-1 ABI Contract
-### Aliases
-In order to increase comprehension, the following aliases will be used to shorten certain names:
+### Información de vídeo
+```
+| Desplazamiento (bytes) | Nombre           | Tipo (estilo C)
+|------------------------|--------------------------------------------------|
+| 0x00                   | fbaddr           | uint64_t                      |
+| 0x08                   | fbwid            | uint32_t                      |
+| 0x0C                   | fbhei            | uint32_t                      |
+| 0x10                   | fbpitch          | uint32_t                      |
+| 0x14                   | fbbpp            | uint32_t                      |
+|------------------------|------------------|-------------------------------|
+```
 
-- ```m_hdr``` = Main header.
-- ```memtable``` = memory region structure table.
-- ```vinfo``` = video information structure.
+**Donde:**
 
-### Preconditions
+- ```fbaddr```: La dirección física del framebuffer.
+- ```fbwid```: El ancho del framebuffer en píxeles.
+- ```fbhei```: El alto del framebuffer en píxeles.
+- ```fbpitch```: El ancho de una línea de escaneo (scanline) en bytes.
+- ```fbbpp```: Los bits por píxel del framebuffer.
 
-- ```m_hdr.magic``` **MUST** have the KBOOM-1 magic value (```{'_','K','B','O','O','M','1','_'}```).
+## Contrato ABI de KBOOM-1
+### Alias
+Para facilitar la comprensión, se utilizarán los siguientes alias para acortar ciertos nombres:
 
-- ```m_hdr.virt_base``` **MUST** be aligned to 2MB. However, the bootstrapper may or may not load it anyway, truncating it to be aligned.
+- ```m_hdr``` = Cabecera principal (Main header).
+- ```memtable``` = Tabla de estructuras de regiones de memoria.
+- ```vinfo``` = Estructura de información de vídeo.
 
-- ```m_hdr.bss_end``` **MUST** be greater or equal to ```m_hdr.bss_base```.
+### Precondiciones
 
-- ```m_hdr.bss_base``` **MUST** be greater or equal to ```m_hdr.virt_base```.
+- ```m_hdr.magic``` **DEBE** tener el valor mágico de KBOOM-1 (```{'_','K','B','O','O','M','1','_'}```).
 
-- ```m_hdr.bss_base``` **SHOULD** be greater or equal to ```m_hdr.virt_base``` + ```m_hdr.size```.
+- ```m_hdr.virt_base``` **DEBE** estar alineada a 2 MB. Sin embargo, el cargador puede cargarla de todos modos, truncándola para alinearla.
 
-- ```m_hdr.entry``` **MUST** belong to the interval [```m_hdr.virt_base```, ```m_hdr.virt_base``` + ```m_hdr.size```).
+- ```m_hdr.bss_end``` **DEBE** ser mayor o igual que ```m_hdr.bss_base```.
 
-- ```m_hdr.video_info``` **MUST** belong to the interval [```m_hdr.virt_base```, ```m_hdr.bss_end```).
+- ```m_hdr.bss_base``` **DEBE** ser mayor o igual que ```m_hdr.virt_base```.
 
-- ```m_hdr.region_table``` **MUST** belong to the interval [```m_hdr.virt_base```, ```m_hdr.bss_end```).
+- ```m_hdr.bss_base``` **DEBERÍA** ser mayor o igual que ```m_hdr.virt_base``` + ```m_hdr.size```.
 
-- ```m_hdr``` **MUST** be placed at the very beginning of the kernel's binary file (offset 0).
+- ```m_hdr.entry``` **DEBE** pertenecer al intervalo [```m_hdr.virt_base```, ```m_hdr.virt_base``` + ```m_hdr.size```).
 
-- The kernel **MUST** be given as a flat binary file.
+- ```m_hdr.video_info``` **DEBE** pertenecer al intervalo [```m_hdr.virt_base```, ```m_hdr.bss_end```).
 
-### Guarantees
+- ```m_hdr.region_table``` **DEBE** pertenecer al intervalo [```m_hdr.virt_base```, ```m_hdr.bss_end```).
 
-If the previous conditions are fullfilled and the bootstrapper's implementation is not broken, the following statements about the machine's state are guaranteed to be true:
+- ```m_hdr``` **DEBE** colocarse al principio mismo del archivo binario del kernel (desplazamiento 0).
 
-#### Registers
+- El kernel **DEBE** proporcionarse como un archivo binario plano (flat binary).
+
+### Garantías
+
+Si se cumplen las condiciones anteriores y la implementación del cargador no está dañada, se garantiza que las siguientes afirmaciones sobre el estado de la máquina son verdaderas:
+
+#### Registros
 - ```CS``` = ```0x08```
 - ```DS, SS, etc.``` = ```0x10```
 - ```FS, GS``` = ```0x00```
 - ```RIP``` = ```m_hdr.entry```
-- ```CR3```: Valid pml4 structure, but only reliable on the short term.
-- ```RSP```: Valid stack, but only reliable on the short term.
+- ```CR3```: Estructura PML4 válida, pero fiable solo a corto plazo.
+- ```RSP```: Pila (stack) válida, pero fiable solo a corto plazo.
 
-_Note: RSP and CR3 are not reliable on the long term because the structures may be overwritten by the kernel if untracked._
+_Nota: RSP y CR3 no son fiables a largo plazo porque las estructuras pueden ser sobrescritas por el kernel si no se rastrean._
 
-#### Control tables
-- ```IDT```: Null or not reliable.
-- ```LDT```: Null or not reliable.
-- ```GDT```: Valid, but only reliable on the short term.
+#### Tablas de control
+- ```IDT```: Nula o no fiable.
+- ```LDT```: Nula o no fiable.
+- ```GDT```: Válida, pero fiable solo a corto plazo.
 
-_Note: GDT is not reliable on the long term because the structure may be overwritten by the kernel if untracked._
+_Nota: La GDT no es fiable a largo plazo porque la estructura puede ser sobrescrita por el kernel si no se rastrea._
 
-#### Other
-- ```.bss```: Initialised to zeroes.
+#### Otros
+- ```.bss```: Inicializada a ceros.
 - ```IF``` = ```0```
 
-**Any other structure, register or flag does not have a guaranteed state upon entry**
+**Ninguna otra estructura, registro o bandera tiene un estado garantizado al entrar.**
 
-### Mapping
-The initial paging will map, at least, the following ranges: 
+### Mapeo
+La paginación inicial mapeará, como mínimo, los siguientes rangos: 
 - ```m_hdr.virt_base``` -> ```m_hdr.bss_end```
 - ```0x0000000000000000``` -> ```0x00000000FFFFFFFF```
 - ```vinfo.fbaddr``` -> ```vinfo.fbaddr + vinfo.pitch * vinfo.fbhei```
 
-## Kernel's duties
-At the very beginning, the kernel **MUST** set up its own stack, GDT and paging, as well as (optionally) an IDT.
+## Deberes del kernel
+Al principio de su ejecución, el kernel **DEBE** configurar su propia pila (stack), GDT y paginación, así como (opcionalmente) una IDT.
