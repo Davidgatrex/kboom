@@ -120,9 +120,9 @@ In order to increase comprehension, the following aliases will be used to shorte
 
 - ```m_hdr.entry``` **MUST** belong to the interval [```m_hdr.virt_base```, ```m_hdr.virt_base``` + ```m_hdr.size```).
 
-- ```m_hdr.video_info``` **MUST** belong to the interval [```m_hdr.virt_base```, ```m_hdr.bss_end```) (if not-null).
+- ```m_hdr.video_info``` **MUST** belong to the interval [```m_hdr.virt_base```, ```m_hdr.bss_end```) (if non-null).
 
-- ```m_hdr.region_table``` **MUST** belong to the interval [```m_hdr.virt_base```, ```m_hdr.bss_end```) (if no-null).
+- ```m_hdr.region_table``` **MUST** belong to the interval [```m_hdr.virt_base```, ```m_hdr.bss_end```) (if non-null).
 
 - ```m_hdr``` **MUST** be placed at the very beginning of the kernel's binary file (offset 0).
 
@@ -137,7 +137,7 @@ If the previous conditions are fullfilled and the bootstrapper's implementation 
 - ```DS, SS, etc.``` = ```0x10```
 - ```FS, GS``` = ```0x00```
 - ```RIP``` = ```m_hdr.entry```
-- ```CR3```: Valid pml4 structure, but only reliable on the short term.
+- ```CR3```: Valid PML4 structure, but only reliable on the short term.
 - ```RSP```: Valid stack, but only reliable on the short term.
 
 _Note: RSP and CR3 are not reliable on the long term because the structures may be overwritten by the kernel if untracked._
@@ -159,7 +159,7 @@ _Note: GDT is not reliable on the long term because the structure may be overwri
 The initial paging will map, at least, the following ranges: 
 - ```m_hdr.virt_base``` -> ```m_hdr.bss_end```
 - ```0x0000000000000000``` -> ```0x00000000FFFFFFFF```
-- ```vinfo.fbaddr``` -> ```vinfo.fbaddr + vinfo.pitch * vinfo.fbhei```
+- ```vinfo.fbaddr``` -> ```vinfo.fbaddr + vinfo.fbpitch * vinfo.fbhei```
 
 ## Kernel's duties
 At the very beginning, the kernel **MUST** set up its own stack, GDT and paging, as well as (optionally) an IDT.
