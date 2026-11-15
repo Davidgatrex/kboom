@@ -1,10 +1,9 @@
-// Note: This reference implementation is still in developement. Use it carefully
 #include <stdint.h>
 #include "mboot.h"
 #include "string.h"
 #include "paging.h"
 #include "alloc.h"
-#include "path/to/kboom.h"
+#include "../src/kboom.h"
 
 extern uint64_t _BSS_END_;
 extern void far_to_kernel(uint64_t entry, uint32_t gdtr, uint32_t pml4, uint32_t ldaddr);
@@ -39,28 +38,29 @@ kboom1_memory_region *regions;
 #define DATA_FLAGS 0xC
 
 struct __attribute__((packed)) gdt_entry {
-    uint16_t limit_low;
-    uint16_t base_low;
-    uint8_t  base_middle;
-    uint8_t  access;
+    uint16_t limit_low;       // Límite (bits 0-15) - Ignorado en 64-bit
+    uint16_t base_low;        // Base (bits 0-15)   - Ignorado en 64-bit
+    uint8_t  base_middle;     // Base (bits 16-23)  - Ignorado en 64-bit
+    uint8_t  access;          // Byte de acceso (privilegios y tipo)
     uint8_t  flags;
-    uint8_t  base_high;
+    uint8_t  base_high;       // Base (bits 24-31)  - Ignorado en 64-bit
 };
 
 struct __attribute__((packed)) gdt_descriptor {
-    uint16_t limit;
-    uint64_t base;
+    uint16_t limit;           // Tamaño de la GDT - 1
+    uint64_t base;            // Dirección virtual de la GDT
 };
 
 struct gdt_entry __attribute__((aligned(64))) gdt[3];
 struct gdt_descriptor __attribute__((aligned(64))) gdtd;
 
+// Función para escribir un carácter en una posición específica (columna, fila)
 void print_char(char c, unsigned char color, int col, int row) {
     volatile unsigned char *vga = (volatile unsigned char *) VGA_ADDRESS;
     int index = (row * MAX_COLS + col) * 2;
     
-    vga[index] = c;
-    vga[index + 1] = color;
+    vga[index] = c;         // Escribir el carácter ASCII
+    vga[index + 1] = color; // Escribir el byte de atributos (color)
 }
 
 #define VGA_WIDTH  80
@@ -72,9 +72,11 @@ extern int xptr, yptr;
 
 static void scroll(void)
 {
+    // Subir todas las filas una posición
     for(int i = 0; i < (VGA_HEIGHT - 1) * VGA_WIDTH; i++)
         vga[i] = vga[i + VGA_WIDTH];
 
+    // Limpiar la última fila
     for(int i = (VGA_HEIGHT - 1) * VGA_WIDTH; i < VGA_HEIGHT * VGA_WIDTH; i++)
         vga[i] = (0x0F << 8) | ' ';
 
@@ -210,8 +212,8 @@ int region_split_at(int region, uint32_t pos)
     uint32_t offset = pos - regions[region].base;
     uint32_t newsz  = regions[region].size - offset;
 
-    regions[new].type     = regions[region].type;
-    regions[new].used     = regions[region].used;
+    regions[new].type     = regions[region].type;   // <- faltaba
+    regions[new].used     = regions[region].used;   // <- faltaba
     regions[new].base     = pos;
     regions[new].size     = newsz;
     regions[new].next_idx = regions[region].next_idx;
@@ -223,7 +225,7 @@ int region_split_at(int region, uint32_t pos)
 
 void *find_memory_gap(const multiboot_info_t *mbi, uint32_t alignment, uint32_t size)
 {
-    uint32_t bss_end = (uint32_t)(uintptr_t)&_BSS_END_;
+    uint32_t bss_end = (uint32_t)(uintptr_t)&_BSS_END_;  // si es símbolo del linker
 
     for (int i = 0; i >= 0 && i < MAX_REGIONS;)
     {
@@ -233,6 +235,7 @@ void *find_memory_gap(const multiboot_info_t *mbi, uint32_t alignment, uint32_t 
 
         if(reg->base < 0x100000 && reg->base + reg->size > 0x100000)
         {
+            // Separar lo que hay bajo 1 MB y continuar con la parte nueva
             int n = region_split_at(prev, 0x100000);
             if(n < 0) return 0;
             i = n;
@@ -241,9 +244,10 @@ void *find_memory_gap(const multiboot_info_t *mbi, uint32_t alignment, uint32_t 
 
         if(reg->base == 0x100000 && reg->base + reg->size > bss_end)
         {
+            // Separar el stage 2 y marcarlo como ocupado
             int n = region_split_at(prev, bss_end);
             if(n < 0) return 0;
-            reg->type = 1;
+            reg->type = 2;      // reservado
             reg->used = 1;
             i = n;
             continue;
@@ -275,17 +279,26 @@ void gdt_setEntry(uint8_t idx, uint8_t flags, uint8_t access)
 
 void fbinfo_write2user(struct kboom1_header *kboom, multiboot_info_t *mbi)
 {
+    kboom1_video_info *vinfo = (kboom1_video_info*)(((uint64_t)kboom->video_info) - kboom->virt_base + (uint64_t)kboom);
+    if(!vinfo)
+        return;
+
     if(!(mbi->flags & (1 << 12)))
     {
-        kboom->video_info->fbaddr = 0;
+        vinfo->fbaddr = 0;
         return;
     }
 
-    kboom->video_info->fbaddr = mbi->framebuffer_addr;
-    kboom->video_info->fbwid = mbi->framebuffer_width;
-    kboom->video_info->fbhei = mbi->framebuffer_height;
-    kboom->video_info->fbbpp = mbi->framebuffer_bpp;
-    kboom->video_info->fbpitch = mbi->framebuffer_pitch;
+    vinfo->fbaddr = mbi->framebuffer_addr;
+    vinfo->fbwid = mbi->framebuffer_width;
+    vinfo->fbhei = mbi->framebuffer_height;
+    vinfo->fbbpp = mbi->framebuffer_bpp;
+    vinfo->fbpitch = mbi->framebuffer_pitch;
+
+    volatile uint32_t* fb = (volatile uint32_t*)vinfo->fbaddr;
+
+    for(int i = 0; i < vinfo->fbwid; i++)
+        fb[i] = 0xFF00FF;
 }
 
 int s2_main(unsigned int magic, multiboot_info_t *mbi)
@@ -310,7 +323,6 @@ int s2_main(unsigned int magic, multiboot_info_t *mbi)
     uint64_t ktsz = kboom_h->bss_end - kboom_h->virt_base;
 
     print("Kernel found\n");
-    fbinfo_write2user(kboom_h, mbi);
     regions = kcmalloc(MAX_REGIONS, sizeof(kboom1_memory_region));
     if(!regions)
     {
@@ -351,6 +363,15 @@ int s2_main(unsigned int magic, multiboot_info_t *mbi)
         map_page(pml4, i * ALIGN_2MB, (uintptr_t)(i * ALIGN_2MB), PAGE_WRITEABLE, PAGE_2MB);
     }
 
+    if(kboom_h->region_table)
+    {
+        kboom1_memory_region *kreg = (kboom1_memory_region *)(((uint64_t)kboom_h->region_table) - kboom_h->virt_base);
+
+        for(int i = 0; i < kboom_h->region_table_sz && i < MAX_REGIONS; i++)
+        {
+            kreg[i] = regions[i];
+        }
+    }
 
     {
         #define total kboom_h->size
@@ -377,6 +398,8 @@ int s2_main(unsigned int magic, multiboot_info_t *mbi)
 
         #undef total
     }
+
+    fbinfo_write2user(ldAddr, mbi);
 
     print("Kernel copied\n");
     print("Setting up GDT\n");
