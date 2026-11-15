@@ -76,6 +76,8 @@ The layout of the header is the following:
 - ```used```: To hold metadata for the PMA of the bootstrapper (it may vary between implementations. Not reliable). To be ignored by the kernel or used by its own PMA after clearing the field.
 - ```flags```: The flags of the region. No flags defined yet.
 
+If the size of the table is not enough, excess information will be discarded and the last entry (following the index chain) will have an invalid ```next_idx```.
+
 ### Video information
 ```
 | Offset (bytes) | Name             | Type (C-style)
