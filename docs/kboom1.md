@@ -21,7 +21,7 @@ KBOOM-1 is not:
 - "**SHOULD**": Advised condition. It is advised, but the kernel is guaranteed to boot even if it's not followed. However, the information may or may not keep its complete integrity.
 
 ## KBOOM-1 Structures
-
+_Note: All of the following structures are packed._
 ### Main header
 
 The KBOOM-1 spec has a header through which information is exchanged from the kernel to the bootstrapper and _vice versa_. The header **MUST** be placed at the byte zero of the kernel's flat binary and it **MUST** begin with an 8-Byte magic signature with the string "\_KBOOM1\_" (without null terminator) as its value.
@@ -118,9 +118,9 @@ In order to increase comprehension, the following aliases will be used to shorte
 
 - ```m_hdr.entry``` **MUST** belong to the interval [```m_hdr.virt_base```, ```m_hdr.virt_base``` + ```m_hdr.size```).
 
-- ```m_hdr.video_info``` **MUST** belong to the interval [```m_hdr.virt_base```, ```m_hdr.bss_end```).
+- ```m_hdr.video_info``` **MUST** belong to the interval [```m_hdr.virt_base```, ```m_hdr.bss_end```) (if not-null).
 
-- ```m_hdr.region_table``` **MUST** belong to the interval [```m_hdr.virt_base```, ```m_hdr.bss_end```).
+- ```m_hdr.region_table``` **MUST** belong to the interval [```m_hdr.virt_base```, ```m_hdr.bss_end```) (if no-null).
 
 - ```m_hdr``` **MUST** be placed at the very beginning of the kernel's binary file (offset 0).
 
