@@ -110,7 +110,7 @@ In order to increase comprehension, the following aliases will be used to shorte
 
 - ```m_hdr.magic``` **MUST** have the KBOOM-1 magic value (```{'_','K','B','O','O','M','1','_'}```).
 
-- ```m_hdr.virt_base``` **MUST** be aligned to 2MB. However, the bootstrapper may not load it.
+- ```m_hdr.virt_base``` **MUST** be aligned to 2MB. Otherwise, the bootstrapper may not load it.
 - ```m_hdr.bss_end``` **MUST** be greater or equal to ```m_hdr.bss_base```.
 
 - ```m_hdr.bss_base``` **MUST** be greater or equal to ```m_hdr.virt_base```.
