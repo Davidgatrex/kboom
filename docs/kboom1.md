@@ -16,7 +16,7 @@ KBOOM-1 is not:
 - A firmware
 
 ### Terminological Disambiguation
-- "**MUST**": Strict condition. Otherwise, it may or may not boot, depending on the implementation.
+- "**MUST**": Strict condition. Otherwise, it may not boot.
 
 - "**SHOULD**": Advised condition. It is advised, but the kernel is guaranteed to boot even if it's not followed. However, the information may or may not keep its complete integrity.
 
@@ -52,7 +52,7 @@ The layout of the header is the following:
 - ```bss_end```: The virtual address of the end of ```.bss``` section.
 - ```video_info```: The virtual address of the video information structure where the kernel wants the video information to be placed (```NULL``` for "no video information expected").
 - ```region_table```: The virtual address of the memory region structure table where the kernel wants the memory region map to be placed (```NULL``` for "no memory regions expected").
-- ```region_table_sz```: The highest number of entries that the region table can hold. If zero, defaulted to 128.
+- ```region_table_sz```: The highest number of entries that the region table can hold.
 
 ### Memory region (entry, not table. The table is just an array)
 ```
@@ -110,8 +110,7 @@ In order to increase comprehension, the following aliases will be used to shorte
 
 - ```m_hdr.magic``` **MUST** have the KBOOM-1 magic value (```{'_','K','B','O','O','M','1','_'}```).
 
-- ```m_hdr.virt_base``` **MUST** be aligned to 2MB. However, the bootstrapper may or may not load it anyway, truncating it to be aligned.
-
+- ```m_hdr.virt_base``` **MUST** be aligned to 2MB. However, the bootstrapper may not load it.
 - ```m_hdr.bss_end``` **MUST** be greater or equal to ```m_hdr.bss_base```.
 
 - ```m_hdr.bss_base``` **MUST** be greater or equal to ```m_hdr.virt_base```.
