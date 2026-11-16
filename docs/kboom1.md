@@ -4,7 +4,7 @@
 
 _Note: KBOOM-1 is intended to be used on x86-64 platforms, so all the document will assume an x86-64 architecture with at least an AMD Opteron as CPU. However, it could theoretically be extended for other architectures._
 
-KBOOM-1 _(Kernel BOOtstrap Metadata Version 1.X)_ is a kernel bootstrapping specification intended to serve as an intermediate layer between the bootloader and the kernel, so the kernel finds itself in a predictable and deterministic 64-bit environment.
+KBOOM-1 _(Kernel BOOtstrap Metadata Version 1)_ is a kernel bootstrapping specification intended to serve as an intermediate layer between the bootloader and the kernel, so the kernel finds itself in a predictable and deterministic 64-bit environment.
 
 It is especially (but not only) meant to easen the load process of a 64-bit higher half kernel (with emphasis on BIOS systems, but also UEFI).
 
